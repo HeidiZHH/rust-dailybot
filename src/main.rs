@@ -1,6 +1,6 @@
 use teloxide::{prelude::*, utils::command::BotCommands};
 use crate::store::Store;
-
+use clap::Parser;
 mod store;
 
 #[tokio::main]
@@ -8,9 +8,13 @@ async fn main() {
     pretty_env_logger::init();
     log::info!("Starting command bot...");
 
+    let args = Cli::parse();
+
+
     let bot = Bot::from_env();
+    let store = Store::new(args.db).unwrap();
     let parameters = ConfigParameters{
-        store: Store{},
+        store: store,
     };
 
     let handler = Update::filter_message().filter_command::<Command>().endpoint(answer);
@@ -21,6 +25,14 @@ async fn main() {
         .build()
         .dispatch()
         .await;
+}
+
+
+/// Search for a pattern in a file and display the lines that contain it.
+#[derive(Parser)]
+struct Cli {
+    /// The connection url to db
+    db: String,
 }
 
 
