@@ -1,34 +1,31 @@
+use diesel::prelude::*;
+use diesel::r2d2::ConnectionManager;
+use diesel::r2d2::Pool;
+use dotenvy::dotenv;
+use std::env;
+use thiserror::Error;
 use tokio::io;
-use mysql::*;
-use mysql::prelude::*;
 
-#[derive(Debug)]
+pub fn establish_conn_pool() -> Result<Pool<ConnectionManager<MysqlConnection>>, Error> {
+    dotenv().ok();
+
+    // Check for DATABASE_URL and return a custom error if it's missing
+    let database_url =
+        env::var("DATABASE_URL").map_err(|_| Error::URLMissing("DATABASE_URL not found".into()))?;
+
+    let manager = ConnectionManager::<MysqlConnection>::new(database_url);
+    Pool::builder()
+        .test_on_check_out(true)
+        .build(manager)
+        .map_err(|e| Error::ConnectionError(e.to_string()))
+}
+
+#[derive(Error, Debug)]
 pub enum Error {
-    Database(mysql::Error),
-    Url(mysql::UrlError),
-}
-
-impl From<mysql::Error> for Error {
-    fn from(err: mysql::Error) -> Self {
-        Self::Database(err)
-    }
-}
-
-impl From<mysql::UrlError> for Error {
-    fn from(err: mysql::UrlError) -> Self {
-        Self::Url(err)
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Self::Database(ref err) => {
-                write!(f, "Database error: {}", err)
-            }
-            Self::Url(ref err) => write!(f, "Databse URL error: {}", err),
-        }
-    }
+    #[error("DATABASE_URL must be set")]
+    URLMissing(String),
+    #[error("Failed to establish a connection: {0}")]
+    ConnectionError(String),
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -39,7 +36,10 @@ pub struct Item {
 
 impl Item {
     pub fn new(id: String, message: String) -> Item {
-        Item {id: id, message: message}
+        Item {
+            id: id,
+            message: message,
+        }
     }
     pub fn message(&self) -> String {
         self.message.clone()
@@ -51,22 +51,19 @@ impl Item {
 
 #[derive(Clone)]
 pub struct Store {
-    conn_pool: mysql::Pool,
+    pool: Pool<ConnectionManager<MysqlConnection>>,
 }
 
 impl Store {
-    pub fn new(db: String) -> Result<Store, Error> {
-        let opts = Opts::from_url(&db)?;
-        let pool = Pool::new(opts)?;
-        return Ok(Store {
-            conn_pool: pool
-        })
+    pub fn new() -> Result<Store, Error> {
+        let pool = establish_conn_pool()?;
+        return Ok(Store { pool: pool });
     }
-    pub fn insert(&mut self, message: String) -> Result<Item, Error>{
+    pub fn insert(&mut self, message: String) -> Result<Item, Error> {
         unimplemented!()
     }
 
-    pub fn get(&self, id: String) -> Result<String, Error>{
+    pub fn get(&self, id: String) -> Result<String, Error> {
         unimplemented!()
     }
 
