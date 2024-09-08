@@ -1,0 +1,6 @@
+-- Your SQL goes here
+CREATE TABLE `items`(
+	`id` INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	`body` TEXT NOT NULL
+);
+
