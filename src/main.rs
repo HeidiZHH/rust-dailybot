@@ -1,11 +1,15 @@
 use crate::store::Store;
 use clap::Parser;
 use teloxide::{prelude::*, utils::command::BotCommands};
+use dotenv::dotenv;
+pub mod models;
+pub mod schema;
 mod store;
 
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
+    dotenv().ok();
     log::info!("Starting command bot...");
 
     let bot = Bot::from_env();
@@ -37,8 +41,6 @@ struct ConfigParameters {
 enum Command {
     #[command(description = "display this text.")]
     Help,
-    #[command(description = "handle a username.")]
-    Username(String),
     #[command(description = "adding new item.")]
     AddItem(String),
     #[command(description = "retrieve item.")]
@@ -56,16 +58,9 @@ async fn answer(
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
                 .await?
         }
-        Command::Username(username) => match config.store.set_user_name(username.clone()) {
-            Ok(_) => {
-                bot.send_message(msg.chat.id, format!("Your username is @{username}."))
-                    .await?
-            }
-            Err(err) => bot.send_message(msg.chat.id, err.to_string()).await?,
-        },
         Command::AddItem(item) => match config.store.insert(item) {
             Ok(res) => {
-                bot.send_message(msg.chat.id, format!("Item {} added.", res.get_id()))
+                bot.send_message(msg.chat.id, format!("Item {} added.", res.id))
                     .await?
             }
             Err(err) => bot.send_message(msg.chat.id, err.to_string()).await?,

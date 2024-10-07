@@ -13,3 +13,4 @@ diesel = { version = "2.2.0", features = ["mysql", "r2d2"] }
 dotenvy = "0.15"
 thiserror = "1.0"
 mysqlclient-sys = { version = "0.4", features = ["bundled"] }
+dotenv = "0.15.0"

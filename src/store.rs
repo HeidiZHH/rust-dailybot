@@ -5,6 +5,9 @@ use dotenvy::dotenv;
 use std::env;
 use thiserror::Error;
 use tokio::io;
+use crate::schema::items;
+use crate::models::Item;
+use crate::models::NewItem;
 
 pub fn establish_conn_pool() -> Result<Pool<ConnectionManager<MysqlConnection>>, Error> {
     dotenv().ok();
@@ -26,28 +29,10 @@ pub enum Error {
     URLMissing(String),
     #[error("Failed to establish a connection: {0}")]
     ConnectionError(String),
+    #[error("Failed to read item: {0}")]
+    ReadError(String),
 }
 
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct Item {
-    id: String,
-    message: String,
-}
-
-impl Item {
-    pub fn new(id: String, message: String) -> Item {
-        Item {
-            id: id,
-            message: message,
-        }
-    }
-    pub fn message(&self) -> String {
-        self.message.clone()
-    }
-    pub fn get_id(&self) -> String {
-        self.id.clone()
-    }
-}
 
 #[derive(Clone)]
 pub struct Store {
@@ -59,15 +44,36 @@ impl Store {
         let pool = establish_conn_pool()?;
         return Ok(Store { pool: pool });
     }
-    pub fn insert(&mut self, message: String) -> Result<Item, Error> {
-        unimplemented!()
+    pub fn insert(&mut self, body: String) -> Result<Item, Error> {
+        let conn = &mut self.pool.get().unwrap();
+        let new_item = NewItem{
+            body: body,
+        };
+        
+        Ok(conn.transaction::<_, diesel::result::Error, _>(|conn| {
+            diesel::insert_into(items::table)
+                .values(&new_item)
+                .execute(conn).expect("Error while saving item");
+    
+            let res = items::table
+                .order(items::id.desc())
+                .select(Item::as_select())
+                .first(conn).expect("Error while loading item");
+            Ok(res)
+        }).expect("Error while inserting item"))
     }
 
     pub fn get(&self, id: String) -> Result<String, Error> {
-        unimplemented!()
-    }
-
-    pub fn set_user_name(&mut self, username: String) -> Result<String, Error> {
-        unimplemented!()
+        let conn = &mut self.pool.get().unwrap();
+        let parsed_id = id.parse::<i32>().expect("Error parsing id");
+        let results = items::table
+            .filter(items::id.eq(parsed_id))
+            .select(items::body)
+            .load::<String>(conn)
+            .expect("Error loading item");
+        if results.len() < 1 {
+            return Err(Error::ReadError("No item found".into()));
+        }
+        return Ok(results[0].clone())
     }
 }
